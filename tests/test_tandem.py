@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 from pathlib import Path
 
 import mlx.core as mx
@@ -418,6 +419,26 @@ def test_randint_width_dtype_and_bounds():
 def test_shader_is_tandem_metal():
     # tandem-metal 6bd3824, unchanged. A repin updates the file, this hash and the README.
     assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "a2266990b4ce0f7078178f7c6bd0143af5f1ffd50bbb948eff3b1b9495026f50"
+
+
+@pytest.mark.parametrize(
+    "draw, moments, cdf",
+    [
+        (tm.normal, [1, 0, 1, 0, 3, 0, 15, 0, 105], lambda x: 0.5 * (1 + mx.erf(x / math.sqrt(2)))),
+        (tm.exponential, [math.factorial(k) for k in range(9)], lambda x: -mx.expm1(-x)),
+    ],
+)
+def test_distribution(draw, moments, cdf):
+    # Raw moments 1 to 4 within 5 standard errors, Var(X^k) = E[X^2k] - E[X^k]^2, and the KS
+    # distance of 10^7 draws under 1.95 / sqrt(n), the critical value at level 0.001.
+    n = 10**7
+    x = mx.sort(draw(tm.key(5), n))
+    xs = np.array(x).astype(np.float64)
+    for k in range(1, 5):
+        assert abs((xs**k).mean() - moments[k]) < 5 * math.sqrt((moments[2 * k] - moments[k] ** 2) / n), k
+    F = np.array(cdf(x)).astype(np.float64)
+    i = np.arange(n)
+    assert max((F - i / n).max(), ((i + 1) / n - F).max()) < 1.95 / math.sqrt(n)
 
 
 

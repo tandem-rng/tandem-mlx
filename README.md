@@ -117,6 +117,8 @@ from its repository and checks that both give the same values.
   applied to the uniform fill;
 - that a bounded fill cut at any element equals the whole fill, rejections included, and that
   empty fills keep the position;
+- raw moments 1 to 4 and the Kolmogorov-Smirnov distance of 10^7 normals and 10^7
+  exponentials;
 - that `tandem.metal` is tandem-metal's file, by its SHA-256;
 - with tandem-numpy installed, words, uniforms, bounded integers, normals and exponentials
   against its C fills, bit for bit.
