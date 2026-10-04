@@ -71,13 +71,14 @@ which gives the same values as every other port.
 
 ### The Metal source
 
-`src/tandem_mlx/tandem.metal` holds the building blocks, the derived draws and the fill loop as
-plain functions, without kernels or buffers. `tm.metal_source()` returns it, so other
-`mx.fast.metal_kernel` code can use it as its header. One thread runs one chunk for its `K`
-steps, and the eight threads of a group store one contiguous 128-byte row per step as `uint4`.
-Normals from an odd first draw pair the last word of a block with the first word of the next
-block through a SIMD shuffle between neighbouring threads. A fill above 2**30 elements runs as
-several launches at offsets, which keeps the kernels' element offsets in 32 bits.
+`src/tandem_mlx/tandem.metal` is the shader source of
+[tandem-metal](https://github.com/tandem-rng/tandem-metal), commit `6bd3824`, unchanged. A test
+checks its hash. It holds the building blocks, the derived draws and the fills as functions in
+namespace `tandem`, and kernels for a Metal host, which tandem-mlx leaves out by defining
+`TANDEM_NO_KERNELS`. `tm.metal_source()` returns that header, so other `mx.fast.metal_kernel`
+code can use it. One thread runs one chunk for its `K` steps, and the eight threads of a group
+store one contiguous 128-byte row per step. Normals from an odd first draw pair the last word of
+a block with the first word of the next block through threadgroup memory.
 
 The normals and exponentials use the polynomial logarithm, sine and cosine of tandem-c with
 explicit `fma` and `metal::precise::divide` and `metal::precise::sqrt`. They are bit for bit
@@ -114,8 +115,9 @@ from its repository and checks that both give the same values.
   draws against Lemire's loop, and normal and exponential fills from even and odd draws;
 - normal fills from even and odd draws, over many groups and every end lane, against Box-Muller
   applied to the uniform fill;
-- that a bounded fill cut at any element equals the whole fill, rejections included, that fills
-  over the launch window equal one launch, and that empty fills keep the position;
+- that a bounded fill cut at any element equals the whole fill, rejections included, and that
+  empty fills keep the position;
+- that `tandem.metal` is tandem-metal's file, by its SHA-256;
 - with tandem-numpy installed, words, uniforms, bounded integers, normals and exponentials
   against its C fills, bit for bit.
 

@@ -1,5 +1,6 @@
 """Spec vectors, tandem-c stream dumps, and the derived-draw fixtures of tandem-c and tandem-cuda."""
 
+import hashlib
 import json
 from pathlib import Path
 
@@ -290,7 +291,7 @@ _pairs = mx.fast.metal_kernel(
     output_names=["out"],
     source="""
     uint j = thread_position_in_grid.x;
-    float2 z = tandem::normal_pair_f32(u[2 * j], u[2 * j + 1]);
+    float2 z = tandem::normal_pair(u[2 * j], u[2 * j + 1]);
     out[2 * j] = z.x, out[2 * j + 1] = z.y;
     """,
     header=tm.metal_source(),
@@ -414,26 +415,10 @@ def test_randint_width_dtype_and_bounds():
         tm.randint(k, 4, 0, 5, mx.float32)
 
 
-def test_windows_equal_the_whole_fill(monkeypatch):
-    # Fills over the window size run as several launches at offsets and must equal one launch.
-    k, n = tm.key(9), 5000
-    calls = [
-        lambda: tm.stream(k, 3, n, mx.uint32)[0],
-        lambda: tm.stream(k, 3, n, mx.uint64)[0],
-        lambda: tm.stream(k, 3, n, mx.uint8)[0],
-        lambda: tm.stream(k, 3, n, mx.float64)[0],
-        lambda: tm.uniform(k, n, position=3),
-        lambda: tm.normal(k, n, position=3),
-        lambda: tm.normal(k, n - 1, position=40),
-        lambda: tm.exponential(k, n, position=3),
-        lambda: tm.randint(k, n, 0, 2**31 + 1, mx.uint32, 3),
-        lambda: tm.randint(k, n, 0, 2**63 + 1, mx.uint64, 3),
-        lambda: tm.randint(k, n, -7, 2**31, mx.int64, 3),
-    ]
-    whole = [np.array(f()) for f in calls]
-    monkeypatch.setattr(_kernels, "WINDOW", 998)
-    for f, want in zip(calls, whole):
-        assert np.array_equal(np.array(f()), want)
+def test_shader_is_tandem_metal():
+    # tandem-metal 6bd3824, unchanged. A repin updates the file, this hash and the README.
+    assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "a2266990b4ce0f7078178f7c6bd0143af5f1ffd50bbb948eff3b1b9495026f50"
+
 
 
 def test_matches_tandem_numpy():

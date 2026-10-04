@@ -30,8 +30,8 @@ _UNSIGNED = {8: mx.uint8, 16: mx.uint16, 32: mx.uint32, 64: mx.uint64}
 
 
 def metal_source():
-    """The MSL source of the kernels' building blocks, tandem.metal."""
-    return _k.SOURCE
+    """tandem.metal without its kernels, as a header for `mx.fast.metal_kernel`."""
+    return _k.HEADER
 
 
 def _key(k):
@@ -263,8 +263,15 @@ def stream_randint(k, position, n, low, high, dtype=mx.int32, width=None, chunk_
     aligned = _start(position, w, n)
     wide = bits_ == 64 or w == 64
     out = (mx.int64 if signed else mx.uint64) if wide else (mx.int32 if signed else mx.uint32)
-    kind = _k.BELOW64 if w == 64 else _k.BELOW32_64 if wide else _k.BELOW32
-    val = _k.fill(k, kind, aligned, n, K, out, r, low)
+    if r == 2**32 and w == 32:
+        # Lemire on the full 32-bit range accepts every draw as it is.
+        raw = _k.fill(k, _k.BITS32, aligned, n, K, mx.uint32)
+        u = np.uint64 if wide else np.uint32
+        low_bits = mx.array(np.array(low % 2 ** (8 * np.dtype(u).itemsize), u))
+        val = (raw.astype(low_bits.dtype) + low_bits).view(out)
+    else:
+        kind = _k.BELOW64 if w == 64 else _k.BELOW32_64 if wide else _k.BELOW32
+        val = _k.fill(k, kind, aligned, n, K, out, r, low)
     return (val if out == dtype else val.astype(dtype)), aligned + w * n
 
 

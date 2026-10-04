@@ -1,4 +1,5 @@
-"""The Metal kernels: thin MLX wrappers over the functions of tandem.metal."""
+"""The Metal kernels: thin MLX wrappers over the fills of tandem.metal, which is tandem-metal's
+shader source, vendored unchanged."""
 
 from importlib.resources import files
 
@@ -6,28 +7,52 @@ import mlx.core as mx
 import numpy as np
 
 SOURCE = (files(__package__) / "tandem.metal").read_text()
+# MLX writes its own kernels around a header, so the header leaves out tandem.metal's kernels.
+HEADER = "#define TANDEM_NO_KERNELS\n" + SOURCE
 
 # Fast math would replace the IEEE division and square root of the normals and exponentials.
 _OPTIONS = {"math_mode": "safe"}
+# tandem.metal's THREADS. The odd normal fill needs whole threadgroups of it.
 _THREADS = 256
 
-# Kinds of tandem::fill, as in tandem.metal.
-BITS32, BITS64, UNIFORM32, BELOW32, BELOW32_64, BELOW64, NORMAL32, EXPONENTIAL32, NORMAL32_ODD = range(9)
+BITS32, BITS64, UNIFORM32, EXPONENTIAL32, BELOW32, BELOW32_64, BELOW64, NORMAL32, NORMAL32_ODD = range(9)
 _WIDTH = {BITS64: 64, BELOW64: 64}
 
-# Elements per launch. Below 2^31 the kernel's element offsets fit in 32 bits, and an even
-# count keeps the normal pairs of a split fill where the whole fill has them.
-WINDOW = 2**30
-
+# KIND picks the element type of tandem::fill, in the order of the kinds above.
 _fill = mx.fast.metal_kernel(
     name="tandem_fill",
     input_names=["key", "params"],
     output_names=["out"],
     source="""
-    tandem::FillParams p = tandem::unpack(key, params);
-    tandem::fill<KIND, K>((device uint *)out, p, thread_position_in_grid.x);
+    tandem::Params p = *(const device tandem::Params *)params;
+    p.key = uint4(key[0], key[1], key[2], key[3]);
+    uint t = thread_position_in_grid.x;
+    device uchar *o = (device uchar *)out;
+    if (KIND <= 1) tandem::fill<tandem::U32>(p, o, t);
+    else if (KIND == 2) tandem::fill<tandem::F32>(p, o, t);
+    else if (KIND == 3) tandem::fill<tandem::Exponential32>(p, o, t);
+    else if (KIND == 4) tandem::fill<tandem::Below32>(p, o, t);
+    else if (KIND == 5) tandem::fill<tandem::Wide32>(p, o, t);
+    else if (KIND == 6) tandem::fill<tandem::Below64>(p, o, t);
+    else tandem::fill_normal(p, (device float *)out, t);
     """,
-    header=SOURCE,
+    header=HEADER,
+    compile_options=_OPTIONS,
+)
+
+_fill_normal_odd = mx.fast.metal_kernel(
+    name="tandem_fill_normal_odd",
+    input_names=["key", "params"],
+    output_names=["out"],
+    source="""
+    threadgroup uint word0[tandem::THREADS];
+    threadgroup uint first0[tandem::GROUPS];
+    tandem::Params p = *(const device tandem::Params *)params;
+    p.key = uint4(key[0], key[1], key[2], key[3]);
+    tandem::fill_normal_odd(p, (device float *)out, thread_position_in_grid.x,
+                            thread_index_in_threadgroup, threadgroup_position_in_grid.x, word0, first0);
+    """,
+    header=HEADER,
     compile_options=_OPTIONS,
 )
 
@@ -43,41 +68,40 @@ _derive = mx.fast.metal_kernel(
     uint4 r = q.w ? s.h : s.o;
     out[4 * i] = r.x, out[4 * i + 1] = r.y, out[4 * i + 2] = r.z, out[4 * i + 3] = r.w;
     """,
-    header=SOURCE,
+    header=HEADER,
     compile_options=_OPTIONS,
 )
 
-def _words64(x):
-    return [x & 0xFFFFFFFF, (x >> 32) & 0xFFFFFFFF]
 
-
-def _launch(key, kind, aligned, n, K, dtype, range_, lo):
-    w = _WIDTH.get(kind, 32)
-    per = 128 // w
-    d0 = aligned // w
-    b0, skip = divmod(d0, per)
-    g_first = (b0 >> 3) // K
-    g_last = (((d0 + n - 1) // per) >> 3) // K
-    params = [*_words64(g_first), b0 - g_first * 8 * K, skip, n, *_words64(d0), *_words64(range_), *_words64(lo)]
-    threads = 8 * (g_last - g_first + 1)
-    return _fill(
-        inputs=[key, mx.array(np.array(params, np.uint32))],
-        template=[("KIND", kind), ("K", K)],
-        grid=(threads, 1, 1),
-        threadgroup=(min(_THREADS, threads), 1, 1),
-        output_shapes=[(n,)],
-        output_dtypes=[dtype],
-    )[0]
+def _threshold(r, w):
+    return (2**w - r) % r if r else 0
 
 
 def fill(key, kind, aligned, n, K, dtype, range_=0, lo=0):
-    """`n` elements of `kind` from the aligned bit position, as a flat array of `dtype`."""
-    w = _WIDTH.get(kind, 32)
-    parts = [
-        _launch(key, kind, aligned + w * s, min(WINDOW, n - s), K, dtype, range_, lo % 2**64)
-        for s in range(0, n, WINDOW)
-    ]
-    return parts[0] if len(parts) == 1 else mx.concatenate(parts)
+    """`n` elements of `kind` from the aligned bit position, as a flat array of `dtype`. The
+    parameters are tandem.metal's Params, packed as tandem-metal's Swift host packs them."""
+    if kind in (NORMAL32, NORMAL32_ODD):
+        s0 = aligned // 32
+        last = s0 + 2 * -(-n // 2) - 1
+        g0, g1 = (s0 >> 5) // K, (last >> 5) // K
+        b0 = b1 = thresh = 0
+    else:
+        w = _WIDTH.get(kind, 32)
+        b0, b1 = aligned // 8, (aligned + w * n) // 8
+        g0, g1 = (b0 >> 7) // K, ((b1 - 1) >> 7) // K
+        s0, thresh = 0, _threshold(range_, w)
+    # Words 0 to 3 hold the key, which the kernel reads from its own input.
+    params = np.array([0, 0, g0, b0, b1, range_, lo % 2**64, thresh, n, s0, 0, K], np.uint64).view(np.uint32)
+    kernel, template = (_fill_normal_odd, None) if kind == NORMAL32_ODD else (_fill, [("KIND", kind)])
+    threads = -(-8 * (g1 - g0 + 1) // _THREADS) * _THREADS
+    return kernel(
+        inputs=[key, mx.array(params)],
+        template=template,
+        grid=(threads, 1, 1),
+        threadgroup=(_THREADS, 1, 1),
+        output_shapes=[(n,)],
+        output_dtypes=[dtype],
+    )[0]
 
 
 def derive(key, spec, domain):
