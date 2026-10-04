@@ -35,8 +35,9 @@ pixi run -e cross test    # also builds tandem-numpy from its repository and com
 - `tests/vectors.json` is a copy of the spec repository's file.
 - `tests/data` holds the stream dumps of tandem-c.
 - `tests/cross_port.json` comes from tandem-jax.
-- `tests/cross_derived.json` holds the fixtures of tandem-c `b049384` and tandem-cuda
-  `c5c5725`, which `tools/convert_c_fixtures.py` writes from their headers.
+- `tests/cross_derived.json` holds the fixtures of tandem-c `121db59` and tandem-cuda
+  `0ff5f18`, which `tools/convert_c_fixtures.py` writes from their headers. It takes only the
+  Float32 normals, which the Float64 ziggurat left unchanged.
 
 ## CI
 

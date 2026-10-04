@@ -59,8 +59,9 @@ Derived fills of zero elements leave the position as it is. `mx.random.uniform`,
 **float64.** Metal has no double type. `uniform` and `stream` take `float64`: the kernel writes
 the 64-bit draws and the CPU stream applies the exact mapping, so the result is an array for the
 CPU stream, `mx.cpu`. Normals and exponentials need double-precision arithmetic, so `float64`
-raises `TypeError`. Use [tandem-numpy](https://github.com/tandem-rng/tandem-numpy) for them,
-which gives the same values as every other port.
+raises `TypeError`, and this package offers no float64 normals. Use
+[tandem-numpy](https://github.com/tandem-rng/tandem-numpy) for them: its float64 normals are the
+1024-layer ziggurat of Appendix A, with the same values as every other port.
 
 ## Parallel use
 
