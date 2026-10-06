@@ -16,7 +16,6 @@ mlx = ">=0.32.3, <0.33"
 
 [tasks]
 test = "pytest"
-bench = "python tools/bench.py"
 
 # The MLX wheels start at macOS 14. 15 matches the CI runner.
 [system-requirements]
@@ -37,5 +36,13 @@ tandem-rng = { git = "https://github.com/tandem-rng/tandem-numpy", rev = "420f6c
 [feature.cross.pypi-options]
 no-build-isolation = ["tandem-rng"]
 
+# `pixi run bench` times MPSMatrixRandomPhilox as the baseline, through PyObjC.
+[feature.bench.pypi-dependencies]
+pyobjc-framework-MetalPerformanceShaders = ">=12.2"
+
+[feature.bench.tasks]
+bench = "python tools/bench.py"
+
 [environments]
 cross = ["cross"]
+bench = ["bench"]
