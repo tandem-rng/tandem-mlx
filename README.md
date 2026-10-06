@@ -11,7 +11,7 @@ a noncryptographic pseudorandom number generator. Its draws run as Metal kernels
 GPUs, bit for bit with the specification and tandem-c, near the GPU's write bandwidth.
 
 Install with pip. It needs macOS 14 or later on Apple silicon, Python 3.13 or later and MLX 0.32
-or later. The shader is tandem-metal's `tandem.metal` at `6bd3824`, vendored unchanged.
+or later. The shader is tandem-metal's `tandem.metal` at `dc45010`, vendored unchanged.
 
 ```sh
 pip install .
@@ -26,6 +26,7 @@ key = tm.key(42)                                   # the spec's generator for se
 x, pos = tm.stream(key, 0, 2**20, mx.float32)      # draws and the position after them
 kid = tm.split(key, 7)                             # the spec's split child 7
 z = tm.normal(kid, (1000,))                        # Box-Muller normals, Appendix A
+i = tm.choice(kid, (1000,), tm.choice_table([1, 2, 7]))  # weighted choice, Appendix C
 ```
 
 See [API](docs/api.md) for every draw and the float64 rules, and [design](docs/design.md),

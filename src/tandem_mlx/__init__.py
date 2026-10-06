@@ -1,11 +1,13 @@
-"""Tandem8x32 for MLX: the specification's stream and the derived draws of its Appendix A,
-computed on the GPU by the Metal kernels of tandem.metal.
+"""Tandem8x32 for MLX: the specification's stream, the derived draws of its Appendix A and the
+weighted choice of its Appendix C, computed on the GPU by the Metal kernels of tandem.metal.
 
 A key is a (4,) uint32 array. Draw functions read the key's stream from a bit position, with
 the specification's alignment, and the `stream*` forms also return the position after the draws.
 """
 
 import math
+from fractions import Fraction
+from typing import NamedTuple
 
 import mlx.core as mx
 import numpy as np
@@ -14,7 +16,8 @@ from . import _kernels as _k
 
 __all__ = [
     "key", "split", "fork", "purpose", "stream", "bits", "uniform", "stream_normal", "normal",
-    "stream_exponential", "exponential", "stream_randint", "randint", "metal_source",
+    "stream_exponential", "exponential", "stream_randint", "randint", "ChoiceTable", "choice_table",
+    "stream_choice", "choice", "metal_source",
 ]
 
 K = 32
@@ -279,3 +282,61 @@ def randint(k, shape, low, high, dtype=mx.int32, position=0, width=None, chunk_l
     """Integers of `shape` uniform on [low, high) from bit `position`, as `stream_randint` gives them."""
     shape = _shape(shape)
     return stream_randint(k, position, math.prod(shape), low, high, dtype, width, chunk_length)[0].reshape(shape)
+
+
+class ChoiceTable(NamedTuple):
+    """The alias table of Appendix C: the column capacity `S`, and `cut` (uint64) and `alias`
+    (uint32) numpy arrays of the m indices."""
+
+    capacity: int
+    cut: np.ndarray
+    alias: np.ndarray
+
+
+def choice_table(weights):
+    """The alias table of Appendix C for `m` weights, finite, nonnegative and not all zero, with
+    `1 <= m < 2**32`. Weights convert to float64 first. The table comes from exact integer
+    arithmetic on the host, so every port builds the same one."""
+    w = [float(x) for x in np.asarray(weights, np.float64).reshape(-1)]
+    m = len(w)
+    if not 1 <= m < 2**32 or not all(math.isfinite(x) and x >= 0 for x in w) or max(w) == 0:
+        raise ValueError("weights must be 1 to 2**32 - 1 finite nonnegative numbers, not all zero")
+    e = math.frexp(max(w))[1] - 1
+    t0 = 63 - m.bit_length() - e
+    ceil2 = lambda x, t: math.ceil(Fraction(x) * Fraction(2) ** t)
+    t = t0 + 63 - sum(ceil2(x, t0) for x in w).bit_length()
+    cut = [ceil2(x, t) for x in w]
+    total = sum(cut)
+    pad = (m - total % m) % m
+    cut[cut.index(max(cut))] += pad
+    s = (total + pad) // m
+    alias = list(range(m))
+    full = lambda start: next((i for i in range(start, m) if cut[i] >= s), m)
+    big = full(0)
+    for i in range(m):
+        j = i
+        while j <= i and cut[j] < s:
+            alias[j] = big
+            cut[big] -= s - cut[j]
+            j = big
+            if cut[big] < s:
+                big = full(big + 1)
+    return ChoiceTable(s, np.array(cut, np.uint64), np.array(alias, np.uint32))
+
+
+def stream_choice(k, position, n, table, chunk_length=K):
+    """`n` uint32 indices in [0, m) drawn by the alias `table` of `choice_table` from bit
+    `position`, as Appendix C defines them, and the position after them. Index i maps 64-bit draw
+    i by integer operations only and never retries, so the indices equal every other port's.
+    n = 0 aligns the position to 64 bits."""
+    k, K = _key(k), _chunk(chunk_length)
+    aligned = _start(position, 64, n)
+    if n == 0:
+        return mx.zeros(0, mx.uint32), aligned
+    return _k.fill_choice(k, aligned, n, K, *table), aligned + 64 * n
+
+
+def choice(k, shape, table, position=0, chunk_length=K):
+    """Indices of `shape` drawn by the alias `table` from bit `position`, as `stream_choice` gives them."""
+    shape = _shape(shape)
+    return stream_choice(k, position, math.prod(shape), table, chunk_length)[0].reshape(shape)

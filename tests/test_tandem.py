@@ -1,4 +1,4 @@
-"""Spec vectors, tandem-c stream dumps, and the derived-draw fixtures of tandem-c and tandem-cuda."""
+"""Spec vectors, tandem-c stream dumps, and the draws of the Metal kernels. The conformance cases are in test_conformance.py."""
 
 import hashlib
 import json
@@ -14,7 +14,6 @@ from tandem_mlx import _kernels
 
 HERE = Path(__file__).parent
 V = json.loads((HERE / "vectors.json").read_text())
-D = json.loads((HERE / "cross_derived.json").read_text())
 KEY = mx.array(np.array([int(w, 16) for w in V["key"]], np.uint32))
 KEY1234 = mx.array(np.array([1, 2, 3, 4], np.uint32))
 KEY42 = mx.array(np.array([0x421D21EB, 0x32D31777, 0x62E7564B, 0xDF2BDF82], np.uint32))
@@ -253,25 +252,8 @@ def test_uniform():
 # ---- Appendix A ------------------------------------------------------------------------------
 
 
-def test_normal_pairs_match_c_reference():
-    z, pos = tm.stream_normal(tm.key(42), 1, len(D["pairs32"]))
-    assert z.dtype == mx.float32 and pos == D["pairs32_end_pos"]
-    assert np.array_equal(bits_of(z), bits_of(np.array(D["pairs32"], np.float32)))
-
-
-def test_normal_fills_match_cuda_fixtures():
-    # Starts 0, 64 and 1000 run the one-pass kernel, 32 and 96 the pair pass from an odd draw.
-    for c in D["device_normal32"]:
-        z, pos = tm.stream_normal(KEY42, c["pos"], c["n"])
-        assert np.array_equal(bits_of(z), bits_of(np.array(c["out"], np.float32))), c["pos"]
-        assert pos == (c["pos"] + 31) // 32 * 32 + 32 * 2 * ((c["n"] + 1) // 2)
-        assert np.array_equal(np.array(tm.normal(KEY42, c["n"], position=c["pos"])), np.array(z))
-
-
 def test_normal_edge_cases():
     k = tm.key(42)
-    z, pos = tm.stream_normal(k, 5, 0)
-    assert z.shape == (0,) and pos == 5
     for start in (0, 32, 64, 96):
         odd, p_odd = tm.stream_normal(k, start, 5)
         even, p_even = tm.stream_normal(k, start, 6)
@@ -315,59 +297,12 @@ def test_normal_fills_equal_pairs_of_the_uniforms(K):
             assert pos == (start + 31) // 32 * 32 + 32 * draws
 
 
-def test_exponentials_match_c_and_cuda():
-    for c in D["exponential32"]:
-        e, pos = tm.stream_exponential(tm.key(42), c["start"], len(c["out"]))
-        assert np.array_equal(bits_of(e), bits_of(np.array(c["out"], np.float32))) and pos == c["end_pos"], c["start"]
-    for c in D["device_exponential32"]:
-        e = tm.exponential(KEY42, c["n"], position=c["pos"])
-        assert np.array_equal(bits_of(e), bits_of(np.array(c["out"], np.float32))), c["pos"]
+def test_exponential_edge_cases():
     k = tm.key(42)
-    e, pos = tm.stream_exponential(k, 7, 0)
-    assert e.shape == (0,) and pos == 7
     big = np.array(tm.exponential(k, 10**6))
     assert (big >= 0).all() and abs(big.mean() - 1) < 0.005
     with pytest.raises(TypeError, match="Metal"):
         tm.exponential(k, 4, mx.float64)
-
-
-@pytest.mark.parametrize("name, dtype, w", [("fill_below32", mx.uint32, 32), ("fill_below64", mx.uint64, 64)])
-def test_randint_matches_c_fills(name, dtype, w):
-    k = tm.key(42)
-    for c in D[name]:
-        got, pos = tm.stream_randint(k, c["start"], len(c["out"]), 0, c["range"], dtype, w)
-        assert np.array_equal(np.array(got), np.array(c["out"], np.dtype(f"uint{w}"))), (c["start"], c["range"])
-        assert pos == c["end_pos"]
-    assert {c["start"] for c in D[name]} >= {0, 1, 12345}
-
-
-@pytest.mark.parametrize("name, w", [("scalar_below32", 32), ("scalar_below64", 64)])
-def test_scalar_bounded_fixtures_match_sequential_lemire(name, w):
-    # A scalar draw rejects by taking the next draw of the main stream, which a fill does not do,
-    # so the fixture is checked against Lemire's loop over the plain draws.
-    draws = [int(x) for x in np.array(tm.stream(tm.key(42), 1, 600, tm._UNSIGNED[w])[0])]
-    for c in D[name]:
-        r, out, used = c["range"], [], 0
-        t = ((1 << w) - r) % r
-        while len(out) < len(c["out"]):
-            m = draws[used] * r
-            used += 1
-            if m % (1 << w) >= t:
-                out.append(m >> w)
-        assert out == c["out"] and w + w * used == c["end_pos"], r
-
-
-@pytest.mark.parametrize(
-    "name, dtype, w",
-    [("device_below32", mx.uint32, 32), ("device_below64", mx.uint64, 64), ("device_below32_at", mx.uint32, 32), ("device_below64_at", mx.uint64, 64)],
-)
-def test_randint_matches_cuda_fills_with_rejections(name, dtype, w):
-    assert max(c["rejected"] for c in D[name]) > 30
-    for c in D[name]:
-        got = tm.randint(KEY42, 64, 0, c["range"], dtype, c.get("start", 0), w)
-        assert np.array_equal(np.array(got), np.array(c["out"], np.dtype(f"uint{w}"))), (c.get("start"), c["range"])
-    if name.endswith("_at"):
-        assert len(D[name]) >= 12 and {c["start"] for c in D[name]} == {1, 12345}
 
 
 def test_randint_cut_equals_whole_at_rejections():
@@ -417,8 +352,8 @@ def test_randint_width_dtype_and_bounds():
 
 
 def test_shader_is_tandem_metal():
-    # tandem-metal 6bd3824, unchanged. A repin updates the file, this hash and the README.
-    assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "a2266990b4ce0f7078178f7c6bd0143af5f1ffd50bbb948eff3b1b9495026f50"
+    # tandem-metal dc45010, unchanged. A repin updates the file, this hash and the README.
+    assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "a7cd06fe7e929262c7d8893b8dd5e23b67989ebdec193bf7fde3ffb3663d9522"
 
 
 @pytest.mark.parametrize(

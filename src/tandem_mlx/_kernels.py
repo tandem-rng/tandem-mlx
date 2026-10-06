@@ -56,6 +56,19 @@ _fill_normal_odd = mx.fast.metal_kernel(
     compile_options=_OPTIONS,
 )
 
+_fill_choice = mx.fast.metal_kernel(
+    name="tandem_fill_choice",
+    input_names=["key", "params", "cut", "alias"],
+    output_names=["out"],
+    source="""
+    tandem::Params p = *(const device tandem::Params *)params;
+    p.key = uint4(key[0], key[1], key[2], key[3]);
+    tandem::fill_choice(p, (device uint *)out, cut, alias, thread_position_in_grid.x);
+    """,
+    header=HEADER,
+    compile_options=_OPTIONS,
+)
+
 _derive = mx.fast.metal_kernel(
     name="tandem_derive",
     input_names=["key", "spec", "domain"],
@@ -101,6 +114,22 @@ def fill(key, kind, aligned, n, K, dtype, range_=0, lo=0):
         threadgroup=(_THREADS, 1, 1),
         output_shapes=[(n,)],
         output_dtypes=[dtype],
+    )[0]
+
+
+def fill_choice(key, aligned, n, K, capacity, cut, alias):
+    """`n` uint32 indices of the alias table (capacity, cut, alias) from the aligned bit position,
+    one 64-bit draw each. Params holds m as the range and the capacity as the threshold."""
+    b0, b1 = aligned // 8, (aligned + 64 * n) // 8
+    g0, g1 = (b0 >> 7) // K, ((b1 - 1) >> 7) // K
+    params = np.array([0, 0, g0, b0, b1, cut.size, 0, capacity, n, 0, 0, K], np.uint64).view(np.uint32)
+    threads = -(-8 * (g1 - g0 + 1) // _THREADS) * _THREADS
+    return _fill_choice(
+        inputs=[key, mx.array(params), mx.array(cut), mx.array(alias)],
+        grid=(threads, 1, 1),
+        threadgroup=(_THREADS, 1, 1),
+        output_shapes=[(n,)],
+        output_dtypes=[mx.uint32],
     )[0]
 
 

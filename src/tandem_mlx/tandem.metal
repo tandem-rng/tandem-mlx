@@ -1,5 +1,6 @@
 // Tandem8x32 for Metal: the building blocks of https://github.com/tandem-rng/spec, fills of the
-// stream, and the bounded, normal and exponential draws of its Appendix A.
+// stream, the bounded, normal and exponential draws of its Appendix A, and the weighted choice of
+// its Appendix C.
 // Copyright 2026 Jessica Cox. Apache License 2.0, see LICENSE.
 //
 // Metal has no double type, so Float64 draws are a host mapping of the u64 fill.
@@ -278,6 +279,40 @@ static void fill(thread const Params &P, device uchar *out, uint tid) {
 }
 
 
+// ---- Weighted choice ------------------------------------------------------------------------
+//
+// Appendix C: a 64-bit draw r gives column j = high word of r m, kept when the high word of
+// (r m mod 2^64) S is below cut[j], else alias[j]. One draw per element and no retry, so every
+// element is independent. P.range holds m and P.thresh the column capacity S. The table pointers
+// are template parameters, since tandem-mlx may pass a small table in constant memory.
+
+template <class Cut, class Alias>
+static inline uint choice(ulong r, thread const Params &P, Cut cut, Alias alias) {
+    ulong j = mulhi(r, P.range), v = mulhi(r * P.range, P.thresh);
+    return v < cut[j] ? uint(j) : alias[j];
+}
+
+// The walk of `fill`, storing one index for each 64-bit draw of a block inside the fill.
+template <class Cut, class Alias>
+static void fill_choice(thread const Params &P, device uint *out, Cut cut, Alias alias, uint tid) {
+    ulong c = 8ul * P.g0 + tid, g = c >> 3, lane = c & 7;
+    ulong r0 = P.b0 >> 7, r1 = (P.b1 - 1) >> 7, row = g * P.K;
+    if (g > r1 / P.K) return;
+    State s = F_keyed(P.key, c, DOMAIN_STREAM, AUX_STREAM);
+    uint j0 = row < r0 ? uint(r0 - row) : 0u;
+    uint j1 = uint(min(r1 - row, ulong(P.K - 1)));
+    for (uint j = 0; j <= j1; j++) {
+        s = T(s);
+        if (j < j0) continue;
+        ulong first = (row + j) * 128 + lane * 16;
+        if (first >= P.b0 && first + 8 <= P.b1)
+            out[(first - P.b0) / 8] = choice(as_type<ulong>(s.o.xy), P, cut, alias);
+        if (first + 8 >= P.b0 && first + 16 <= P.b1)
+            out[(first + 8 - P.b0) / 8] = choice(as_type<ulong>(s.o.zw), P, cut, alias);
+    }
+}
+
+
 // ---- Normals --------------------------------------------------------------------------------
 //
 // Pair j is elements 2j and 2j + 1 from the f32 draws s0 + 2j and s0 + 2j + 1, where s0 is the
@@ -382,6 +417,13 @@ template [[host_name("fill_exponential_f32")]] kernel void fill<tandem::Exponent
 template [[host_name("fill_below32")]] kernel void fill<tandem::Below32>(constant tandem::Params &, device uchar *, uint);
 template [[host_name("fill_below32_wide")]] kernel void fill<tandem::Wide32>(constant tandem::Params &, device uchar *, uint);
 template [[host_name("fill_below64")]] kernel void fill<tandem::Below64>(constant tandem::Params &, device uchar *, uint);
+
+kernel void fill_choice(constant tandem::Params &P [[buffer(0)]], device uint *out [[buffer(1)]],
+                        device const ulong *cut [[buffer(2)]], device const uint *alias [[buffer(3)]],
+                        uint tid [[thread_position_in_grid]]) {
+    tandem::Params p = P;
+    tandem::fill_choice(p, out, cut, alias, tid);
+}
 
 kernel void fill_normal_f32(constant tandem::Params &P [[buffer(0)]], device float *out [[buffer(1)]],
                             uint tid [[thread_position_in_grid]]) {

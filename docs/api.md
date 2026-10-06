@@ -11,6 +11,7 @@ u = tm.uniform(key, (1000,))                       # float32 uniforms, the spec'
 z = tm.normal(key, (1000,))                        # Box-Muller normals, Appendix A
 e = tm.exponential(key, (1000,))                   # -log(1 - u), Appendix A
 r = tm.randint(key, (1000,), 0, 6)                 # Lemire bounded integers, Appendix A
+i = tm.choice(key, (1000,), tm.choice_table([1, 2, 7]))  # weighted choice, Appendix C
 w = tm.bits(key, (16,), mx.uint32)                 # the stream words from position 0
 
 x, pos = tm.stream(key, 0, 2**20, mx.float32)      # draws and the position after them
@@ -52,8 +53,15 @@ and `stream_exponential` forms return the draws and the position after them.
   `r cos 2 pi b` and `r sin 2 pi b` with `r = sqrt(-2 log(1 - a))`, from uniform draws `2j` and
   `2j + 1`. A fill consumes `2 ceil(n / 2)` draws.
 - `exponential(key, shape, dtype, position)`: `-log(1 - u)` from one uniform draw each.
+- `choice_table(weights)` builds the integer alias table of
+  [Appendix C](https://github.com/tandem-rng/spec/blob/main/SPEC.md#appendix-c-weighted-choice-non-normative)
+  on the host from finite, nonnegative weights, not all zero. `choice(key, shape, table,
+  position)` and `stream_choice(key, position, n, table)` draw `uint32` indices with probability
+  proportional to the weights. Element `i` maps 64-bit draw `i` by integer operations only and
+  never retries, so the indices equal every other port's.
 
-Derived fills of zero elements leave the position as it is. `mx.random.uniform`, `normal` and
+Derived fills of zero elements leave the position as it is, except a choice fill, which aligns
+it to 64 bits. A fill whose end would reach bit `2**64` raises `ValueError`. `mx.random.uniform`, `normal` and
 `randint` use MLX's own threefry key and give different values.
 
 **float64.** Metal has no double type. `uniform` and `stream` take `float64`: the kernel writes

@@ -3,7 +3,7 @@
 ## Metal source
 
 `src/tandem_mlx/tandem.metal` is the shader source of
-[tandem-metal](https://github.com/tandem-rng/tandem-metal), commit `6bd3824`, unchanged. A test
+[tandem-metal](https://github.com/tandem-rng/tandem-metal), commit `dc45010`, unchanged. A test
 checks its hash. It holds the building blocks, the derived draws and the fills as functions in
 namespace `tandem`, and kernels for a Metal host, which tandem-mlx leaves out by defining
 `TANDEM_NO_KERNELS`. `tm.metal_source()` returns that header, so other `mx.fast.metal_kernel`
