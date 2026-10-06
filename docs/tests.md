@@ -26,7 +26,7 @@ pixi run -e cross test    # also builds tandem-numpy from its repository and com
   against its C fills, bit for bit.
 
 `tests/test_conformance.py` reads the spec's conformance files and checks the items of its
-`conformance/CHECKLIST.md`:
+`conformance/CHECKLIST.md` at b31af72:
 
 - every bounded, Float32 normal, Float32 exponential and weighted choice case, values and end
   positions, whole, cut at elements 1, 7, 20, 21 and `n - 1` (2, 8, 20 and the last even element

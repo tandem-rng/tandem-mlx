@@ -1,5 +1,5 @@
 """The spec's conformance files, copies of tandem-spec f420545 conformance/*.json that CI checks
-byte for byte, and the items of its conformance/CHECKLIST.md. Metal has no double type, so the
+byte for byte, and the items of its conformance/CHECKLIST.md at b31af72. Metal has no double type, so the
 Float64 cases and the long outputs of tandem-c's dump tools, which hold Float64 draws or need an
 FNV-1a pass over 40 MB, are left to the ports with Float64 draws. MLX has no complex draws."""
 
