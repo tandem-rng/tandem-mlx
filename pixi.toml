@@ -31,7 +31,7 @@ pkg-config = "*"
 c-compiler = "*"
 
 [feature.cross.pypi-dependencies]
-tandem-rng = { git = "https://github.com/tandem-rng/tandem-numpy", rev = "420f6cc1a3eec3faffb4a0075a77595093ed05e3" }
+tandem-rng = { git = "https://github.com/tandem-rng/tandem-numpy", rev = "5d620a3d2ecc981c8142ecd9d9f0d0b14e08d25b" }
 
 [feature.cross.pypi-options]
 no-build-isolation = ["tandem-rng"]

@@ -25,8 +25,8 @@ jobs:
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      # tandem-numpy builds from source for the cross-check, with its tandem-c submodule.
-      - run: pip install . pytest "tandem-rng @ git+https://github.com/tandem-rng/tandem-numpy@420f6cc1a3eec3faffb4a0075a77595093ed05e3"
+      # tandem-numpy builds from source for the cross-check, with its tandem-c submodule at 1c75956.
+      - run: pip install . pytest "tandem-rng @ git+https://github.com/tandem-rng/tandem-numpy@5d620a3d2ecc981c8142ecd9d9f0d0b14e08d25b"
       - run: python -c "import mlx.core as mx; print(mx.__version__, mx.device_info())"
       - run: pytest -rs
   vectors:
