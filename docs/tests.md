@@ -26,7 +26,7 @@ pixi run -e cross test    # also builds tandem-numpy from its repository and com
   against its C fills, bit for bit.
 
 `tests/test_conformance.py` reads the spec's conformance files and checks the items of its
-`conformance/CHECKLIST.md` at b31af72:
+`conformance/CHECKLIST.md` at 2a4bd08:
 
 - every bounded, Float32 normal, Float32 exponential and weighted choice case, values and end
   positions, whole, cut at elements 1, 7, 20, 21 and `n - 1` (2, 8, 20 and the last even element
@@ -44,7 +44,7 @@ not run, and MLX has no complex draws.
 ## Fixtures
 
 - `tests/vectors.json` is a copy of the spec repository's file.
-- `tests/conformance` holds the spec's `conformance/*.json` at commit `f420545`.
+- `tests/conformance` holds the spec's `conformance/*.json` at commit `2a4bd08`.
 - `tests/data` holds the stream dumps of tandem-c.
 - `tests/cross_port.json` comes from tandem-jax.
 
@@ -53,4 +53,4 @@ not run, and MLX has no complex draws.
 CI runs `pytest` on macos-15 with Python 3.13 and on macos-latest with Python 3.14, with
 tandem-numpy built from source for the cross-check. A drift check fails when
 `tests/vectors.json` differs from the spec repository's file, or `tests/conformance` from the
-spec's `conformance` directory at `f420545`.
+spec's `conformance` directory at `2a4bd08`.

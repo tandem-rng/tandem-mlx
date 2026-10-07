@@ -352,8 +352,8 @@ def test_randint_width_dtype_and_bounds():
 
 
 def test_shader_is_tandem_metal():
-    # tandem-metal dc45010, unchanged. A repin updates the file, this hash and the README.
-    assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "a7cd06fe7e929262c7d8893b8dd5e23b67989ebdec193bf7fde3ffb3663d9522"
+    # tandem-metal 3c0b1be, unchanged. A repin updates the file, this hash and the README.
+    assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "37daef07315a49d5a748ccafadbe4641d2c79299b7b07dc22491f0b8b48c3fdd"
 
 
 @pytest.mark.parametrize(

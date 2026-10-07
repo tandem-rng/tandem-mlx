@@ -166,6 +166,22 @@ static inline float neg2_log(float x) {
     return fma(nk, 2.857213530660374e-06f, fma(nk, 1.38629150390625f, (s * -4.0f) * p));
 }
 
+// -ln x for x in (0, 1], the Float32 exponential of tandem-c, within 0.58 ulp. The leading term
+// u = (2 - 2m) / (m + 1) is carried as uh + r / d, with m + 1 = d + dl exactly and r the residual
+// of uh, and nk ln2_hi + uh is split exactly by fast two-sum. uh rounds in an fma, so that no
+// contraction feeds the unrounded num rcp to the two-sum.
+static inline float neg_log(float x) {
+    uint ix = as_type<uint>(x) + 0x004afb0du;
+    float nk = float(127 - int(ix >> 23));
+    float m = as_type<float>((ix & 0x007fffffu) + 0x3f3504f3u);
+    float num = fma(m, -2.0f, 2.0f), d = m + 1.0f, dl = m - (d - 1.0f);
+    float rcp = precise::divide(1.0f, d), uh = fma(num, rcp, 0.0f);
+    float r = fma(-uh, dl, fma(-uh, d, num)), v = uh * uh;
+    float q = fma(v, fma(v, 0.0023109776f, 0.012496489f), 0.08333336f);
+    float a = nk * 0.693145751953125f, hi = a + uh, e = uh - (hi - a);
+    return hi + fma(uh * v, q, fma(r, rcp, fma(nk, 1.428606765330187e-06f, e)));
+}
+
 // One Box-Muller step in float, cos half first, the operations of tandem-c's normal loop. The
 // angle is cut at the nearest quarter turn q, which is exact, and short series give cos and sin
 // on the rest. q then swaps the two and sets their signs.
@@ -199,7 +215,7 @@ struct Exponential32 {
     enum { draw = 4 };
     static uint4 make(uint4 w, thread const Params &, ulong) {
         float4 u = 1.0f - to_f32(w);
-        return as_type<uint4>(0.5f * float4(neg2_log(u.x), neg2_log(u.y), neg2_log(u.z), neg2_log(u.w)));
+        return as_type<uint4>(float4(neg_log(u.x), neg_log(u.y), neg_log(u.z), neg_log(u.w)));
     }
 };
 struct Below32 {
