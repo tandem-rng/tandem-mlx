@@ -135,7 +135,7 @@ environments:
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/tk-8.6.13-hbeba79b_4.conda
       - conda: https://conda.anaconda.org/conda-forge/osx-arm64/zstd-1.5.7-hf451053_7.conda
       - pypi: ./
-      - pypi: git+https://github.com/tandem-rng/tandem-numpy?rev=420f6cc1a3eec3faffb4a0075a77595093ed05e3#420f6cc1a3eec3faffb4a0075a77595093ed05e3
+      - pypi: git+https://github.com/tandem-rng/tandem-numpy?rev=5d620a3d2ecc981c8142ecd9d9f0d0b14e08d25b#5d620a3d2ecc981c8142ecd9d9f0d0b14e08d25b
       - pypi: https://files.pythonhosted.org/packages/3c/dc/4f852295fbe357bb9d3a2bfd55361a520b94ded873b72dc58b34a7f507cd/mlx_metal-0.32.3-py3-none-macosx_15_0_arm64.whl
       - pypi: https://files.pythonhosted.org/packages/ed/50/b79bf60cad0cf3c6a0040c18963e682a628ad12bdd83ff0f45e9b5893b2d/mlx-0.32.3-cp314-cp314-macosx_15_0_arm64.whl
   default:
@@ -1194,7 +1194,7 @@ packages:
   - mlx>=0.32
   - numpy>=2.0
   requires_python: '>=3.13'
-- pypi: git+https://github.com/tandem-rng/tandem-numpy?rev=420f6cc1a3eec3faffb4a0075a77595093ed05e3#420f6cc1a3eec3faffb4a0075a77595093ed05e3
+- pypi: git+https://github.com/tandem-rng/tandem-numpy?rev=5d620a3d2ecc981c8142ecd9d9f0d0b14e08d25b#5d620a3d2ecc981c8142ecd9d9f0d0b14e08d25b
   name: tandem-rng
   version: 0.1.0
   requires_dist:
