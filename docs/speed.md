@@ -1,4 +1,4 @@
-# Speed
+# Performance
 
 `pixi run bench` produces the figures, in its own environment with PyObjC for the MPS baseline.
 

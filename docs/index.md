@@ -8,7 +8,7 @@ GPU's write bandwidth.
 - [API](api.md): the draw functions, keys, positions and the float64 rules.
 - [Design](design.md): the vendored Metal source, its fills and its arithmetic.
 - [Tests](tests.md): what the suite checks, the fixtures, and what CI runs.
-- [Speed](speed.md): Apple M4 Pro figures against `mx.random`.
+- [Performance](speed.md): Apple M4 Pro figures against `mx.random`.
 
 ## Install
 
