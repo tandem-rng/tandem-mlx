@@ -10,13 +10,16 @@
 a noncryptographic pseudorandom number generator. Its draws run as Metal kernels on Apple silicon
 GPUs, bit for bit with the specification and tandem-c, near the GPU's write bandwidth.
 
-Install with pip. It needs macOS 14 or later on Apple silicon, Python 3.13 or later and MLX 0.32
-or later. The shader is tandem-metal's `tandem.metal` at `3c0b1be`, vendored unchanged.
+## Install
+
+Install with pip.
 
 ```sh
 pip install .
 pixi run test
 ```
+
+## Quick start
 
 ```python
 import mlx.core as mx
@@ -29,9 +32,16 @@ z = tm.normal(kid, (1000,))                        # Box-Muller normals, Appendi
 i = tm.choice(kid, (1000,), tm.choice_table([1, 2, 7]))  # weighted choice, Appendix C
 ```
 
+## Requirements
+
+It needs macOS 14 or later on Apple silicon, Python 3.13 or later and MLX 0.32
+or later. The shader is tandem-metal's `tandem.metal` at `3c0b1be`, vendored unchanged.
+
+## Documentation
+
 See [API](docs/api.md) for every draw and the float64 rules, and [design](docs/design.md),
 [tests](docs/tests.md) and [speed](docs/speed.md) for the rest.
 
 Portions of the code were generated with the assistance of LLMs.
 
-[Documentation](https://tandem-rng.github.io/tandem-mlx/) · [Apache 2.0 license](LICENSE)
+[Docs](https://tandem-rng.github.io/tandem-mlx/) · [Specification](https://github.com/tandem-rng/spec/blob/main/SPEC.md) · [Website](https://tandem-rng.github.io/) · [Issues](https://github.com/tandem-rng/tandem-mlx/issues) · [License](LICENSE)
