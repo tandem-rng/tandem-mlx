@@ -351,6 +351,30 @@ def test_randint_width_dtype_and_bounds():
         tm.randint(k, 4, 0, 5, mx.float32)
 
 
+@pytest.mark.parametrize(
+    "dtype, low, high", [(mx.uint64, 0, 2**64), (mx.int64, -(2**63), 2**63)]
+)
+def test_randint_full_64_bit_range(dtype, low, high):
+    # The full range is the raw 64-bit draw plus low, with no rejection. Use the host
+    # block reference across a K = 8 chunk boundary, combining low and high words exactly.
+    start, n, K = 8127, 5, 8
+    aligned = (start + 63) // 64 * 64
+    want = []
+    for position in range(aligned, aligned + 64 * n, 64):
+        row, lane = divmod(position // 128, 8)
+        block = ref_block([1, 2, 3, 4], (row // K) * 8 + lane, row % K)
+        i = (position % 128) // 32
+        want.append((block[i] | (block[i + 1] << 32)) + low)
+    for width in (None, 64):
+        got, end = tm.stream_randint(KEY1234, start, n, low, high, dtype, width, K)
+        assert np.array_equal(
+            np.array(got), np.array(want, np.uint64 if low == 0 else np.int64)
+        )
+        assert end == aligned + 64 * n
+    empty, end = tm.stream_randint(KEY1234, 7, 0, low, high, dtype)
+    assert empty.shape == (0,) and end == 7
+
+
 def test_shader_is_tandem_metal():
     # tandem-metal 3c0b1be, unchanged. A repin updates the file, this hash and the README.
     assert hashlib.sha256(_kernels.SOURCE.encode()).hexdigest() == "37daef07315a49d5a748ccafadbe4641d2c79299b7b07dc22491f0b8b48c3fdd"
