@@ -266,9 +266,10 @@ def stream_randint(k, position, n, low, high, dtype=mx.int32, width=None, chunk_
     aligned = _start(position, w, n)
     wide = bits_ == 64 or w == 64
     out = (mx.int64 if signed else mx.uint64) if wide else (mx.int32 if signed else mx.uint32)
-    if r == 2**32 and w == 32:
-        # Lemire on the full 32-bit range accepts every draw as it is.
-        raw = _k.fill(k, _k.BITS32, aligned, n, K, mx.uint32)
+    if r == 2**w:
+        # Lemire on the full draw range accepts every draw as it is.
+        kind = _k.BITS64 if w == 64 else _k.BITS32
+        raw = _k.fill(k, kind, aligned, n, K, _UNSIGNED[w])
         u = np.uint64 if wide else np.uint32
         low_bits = mx.array(np.array(low % 2 ** (8 * np.dtype(u).itemsize), u))
         val = (raw.astype(low_bits.dtype) + low_bits).view(out)
